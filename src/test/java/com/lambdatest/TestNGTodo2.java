@@ -1,24 +1,14 @@
 package com.lambdatest;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+
 import java.lang.reflect.Method;
-import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.stream.Collectors;
 import io.restassured.RestAssured;
 import io.restassured.http.Header;
 import io.restassured.path.json.JsonPath;
 import io.restassured.response.Response;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.chrome.ChromeDriver;
-
 import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
 import org.openqa.selenium.By;
 import org.openqa.selenium.remote.DesiredCapabilities;
 import org.openqa.selenium.remote.RemoteWebDriver;
@@ -128,33 +118,6 @@ public class TestNGTodo2 {
     @AfterMethod
     public void tearDown() throws InterruptedException {
         driver.executeScript("lambda-status=" + Status);
-        driver.quit();
-        
-       //  String apiUrl = "https://api.lambdatest.com/automation/api/v1/sessions/"+sessionId;
-
-        // Use your preferred method (e.g., HttpURLConnection, OkHttp, etc.) to make the API call
-        // Here's an example using HttpURLConnection
-      /* * try {
-            URL url = new URL(apiUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty("accept", "application/json");
-            connection.setRequestProperty("Authorization", "<Update your token . get it from API doc>");
-            // Process the API response as needed
-            InputStream inputStream = connection.getInputStream();
-            String response = new BufferedReader(
-                    new InputStreamReader(inputStream, StandardCharsets.UTF_8))
-                    .lines()
-                    .collect(Collectors.joining("\n"));
-
-            System.out.println("Response Message is"+response);
-            // ...
-
-            connection.disconnect();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }*/
-
         try {
             String apiUrl = "https://api.lambdatest.com/automation/api/v1/sessions/"+sessionId;
             String authHeader = "Basic " + Base64.getEncoder().encodeToString((username + ":" + authkey).getBytes());
@@ -163,25 +126,23 @@ public class TestNGTodo2 {
             Header acceptHeader = new Header("accept", "application/json");
             Header authorizationHeader = new Header("Authorization", authHeader);
     
-            // First API Call to fetch Test_id
+            // First API Call using current session ID
             Response response = RestAssured
                     .given()
                     .header(acceptHeader)
                     .header(authorizationHeader)
                     .get(apiUrl);
-            // First API Call
-           // Response response = RestAssured.get(apiUrl);
             
             // Extract Test_id from response
             JsonPath jsonPath = response.jsonPath();
         String testId = jsonPath.getString("data.test_id");
             System.out.println("Original Test_id: " + testId);
             
-            // Modify Test_id
+            // Modify Test_id and append AUT_ in the begining
             String modifiedTestId = "AUT_" + testId;
             System.out.println("Modified Test_id: " + modifiedTestId);
             
-            // Second API Call with modified Test_id
+            // Second API Call with modified Test_id to fetch accecibility Details w.r.t Test Id
             Thread.sleep(50000);
             Response secondResponse = RestAssured
                     .given()
