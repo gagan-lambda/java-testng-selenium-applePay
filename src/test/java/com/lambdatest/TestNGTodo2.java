@@ -116,8 +116,10 @@ public class TestNGTodo2 {
     }
 
     @AfterMethod
+    
     public void tearDown() throws InterruptedException {
         driver.executeScript("lambda-status=" + Status);
+        driver.quit();
         try {
             String apiUrl = "https://api.lambdatest.com/automation/api/v1/sessions/"+sessionId;
             String authHeader = "Basic " + Base64.getEncoder().encodeToString((username + ":" + authkey).getBytes());
@@ -157,8 +159,8 @@ public class TestNGTodo2 {
             System.out.println("Second API Response: " + responseBody);
             
         } finally {
-            // Close WebDriver
-            driver.quit();
+            System.out.println("Response not found");
+            
         }
     }
 
