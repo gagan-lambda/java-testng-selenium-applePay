@@ -1,9 +1,24 @@
 package com.lambdatest;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Method;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.stream.Collectors;
+import io.restassured.RestAssured;
+import io.restassured.http.Header;
+import io.restassured.path.json.JsonPath;
+import io.restassured.response.Response;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
 
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 import org.openqa.selenium.By;
 import org.openqa.selenium.remote.DesiredCapabilities;
 import org.openqa.selenium.remote.RemoteWebDriver;
@@ -17,20 +32,15 @@ public class TestNGTodo2 {
 
     private RemoteWebDriver driver;
     private String Status = "failed";
-
+    String sessionId = "";
+    String username = "";
+    String authkey = "";
     @BeforeMethod
     public void setup(Method m, ITestContext ctx) throws MalformedURLException {
-        String username = System.getenv("LT_USERNAME") == null ? "Your LT Username" : System.getenv("LT_USERNAME");
-        String authkey = System.getenv("LT_ACCESS_KEY") == null ? "Your LT AccessKey" : System.getenv("LT_ACCESS_KEY");
+        username = System.getenv("LT_USERNAME") == null ? "Your LT Username" : System.getenv("LT_USERNAME");
+        authkey = System.getenv("LT_ACCESS_KEY") == null ? "Your LT AccessKey" : System.getenv("LT_ACCESS_KEY");
         ;
         
-        /*
-        Steps to run Smart UI project (https://beta-smartui.lambdatest.com/)
-        Step - 1 : Change the hub URL to @beta-smartui-hub.lambdatest.com/wd/hub
-        Step - 2 : Add "smartUI.project": "<Project Name>" as a capability above
-        Step - 3 : Add "((JavascriptExecutor) driver).executeScript("smartui.takeScreenshot");" code wherever you need to take a screenshot
-        Note: for additional capabilities navigate to https://www.lambdatest.com/support/docs/test-settings-options/
-        */
 
         String hub = "@hub.lambdatest.com/wd/hub";
 
@@ -41,11 +51,13 @@ public class TestNGTodo2 {
         caps.setCapability("build", "TestNG With Java");
         caps.setCapability("name", m.getName() + this.getClass().getName());
         caps.setCapability("plugin", "git-testng");
-
-        /*
-        Enable Smart UI Project
-        caps.setCapability("smartUI.project", "<Project Name>");
-        */
+        caps.setCapability("performance", "true"); // For Light house report
+        caps.setCapability("network", true);
+        caps.setCapability("selenium_version", "latest");
+        caps.setCapability("accessibility", true); // Enable accessibility testing
+        caps.setCapability("accessibility.wcagVersion", "wcag21a"); // Specify WCAG version (e.g., WCAG 2.1 Level A)
+        caps.setCapability("accessibility.bestPractice", false); // Exclude best practice issues from results
+       caps.setCapability("accessibility.needsReview", true); // Include issues that need review
 
         String[] Tags = new String[] { "Feature", "Magicleap", "Severe" };
         caps.setCapability("tags", Tags);
@@ -106,16 +118,87 @@ public class TestNGTodo2 {
         spanText = driver.findElementByXPath("/html/body/div/div/div/ul/li[9]/span").getText();
         Assert.assertEquals("Get Taste of Lambda and Stick to It", spanText);
         Status = "passed";
-        Thread.sleep(150);
+        Thread.sleep(15000);
 
         System.out.println("TestFinished");
-
+        sessionId = driver.getSessionId().toString();
+        System.out.println("Session Id is"+sessionId);
     }
 
     @AfterMethod
-    public void tearDown() {
+    public void tearDown() throws InterruptedException {
         driver.executeScript("lambda-status=" + Status);
         driver.quit();
+        
+       //  String apiUrl = "https://api.lambdatest.com/automation/api/v1/sessions/"+sessionId;
+
+        // Use your preferred method (e.g., HttpURLConnection, OkHttp, etc.) to make the API call
+        // Here's an example using HttpURLConnection
+      /* * try {
+            URL url = new URL(apiUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("accept", "application/json");
+            connection.setRequestProperty("Authorization", "<Update your token . get it from API doc>");
+            // Process the API response as needed
+            InputStream inputStream = connection.getInputStream();
+            String response = new BufferedReader(
+                    new InputStreamReader(inputStream, StandardCharsets.UTF_8))
+                    .lines()
+                    .collect(Collectors.joining("\n"));
+
+            System.out.println("Response Message is"+response);
+            // ...
+
+            connection.disconnect();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }*/
+
+        try {
+            String apiUrl = "https://api.lambdatest.com/automation/api/v1/sessions/"+sessionId;
+            String authHeader = "Basic " + Base64.getEncoder().encodeToString((username + ":" + authkey).getBytes());
+
+            // Define Common Headers
+            Header acceptHeader = new Header("accept", "application/json");
+            Header authorizationHeader = new Header("Authorization", authHeader);
+    
+            // First API Call to fetch Test_id
+            Response response = RestAssured
+                    .given()
+                    .header(acceptHeader)
+                    .header(authorizationHeader)
+                    .get(apiUrl);
+            // First API Call
+           // Response response = RestAssured.get(apiUrl);
+            
+            // Extract Test_id from response
+            JsonPath jsonPath = response.jsonPath();
+        String testId = jsonPath.getString("data.test_id");
+            System.out.println("Original Test_id: " + testId);
+            
+            // Modify Test_id
+            String modifiedTestId = "AUT_" + testId;
+            System.out.println("Modified Test_id: " + modifiedTestId);
+            
+            // Second API Call with modified Test_id
+            Thread.sleep(50000);
+            Response secondResponse = RestAssured
+                    .given()
+                    .header(acceptHeader)
+                .header(authorizationHeader)
+                    .queryParam("bestPractice", "false")
+                .queryParam("needsReview", "true")
+                .get("https://api.lambdatest.com/accessibility/api/v1/test-issue/"+modifiedTestId);
+            
+            // Fetch and print the response from the second API
+            String responseBody = secondResponse.getBody().asString();
+            System.out.println("Second API Response: " + responseBody);
+            
+        } finally {
+            // Close WebDriver
+            driver.quit();
+        }
     }
 
 }
